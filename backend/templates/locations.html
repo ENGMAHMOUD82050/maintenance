@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+{% block title %}Locations{% endblock %}
+{% block content %}
+
+<div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+  <h5 class="mb-0">Locations</h5>
+  <div class="small text-muted">Add Buildings → Floors → Sections → Rooms</div>
+</div>
+
+<div class="row g-3">
+
+  <div class="col-lg-3">
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <div class="fw-semibold mb-2">Buildings</div>
+
+        <form method="post" action="/locations/buildings/add" class="d-flex gap-2 mb-2">
+          <input class="form-control form-control-sm" name="name" placeholder="New building..." required>
+          <button class="btn btn-sm btn-primary">Add</button>
+        </form>
+
+        <div class="list-group list-group-sm">
+          {% for b in buildings %}
+            <a class="list-group-item list-group-item-action {% if building_id==b.id %}active{% endif %}"
+               href="/locations?building_id={{ b.id }}">
+              {{ b.name }}
+            </a>
+          {% endfor %}
+          {% if not buildings %}
+            <div class="small text-muted">No buildings yet.</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-3">
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <div class="fw-semibold mb-2">Floors</div>
+
+        <form method="post" action="/locations/floors/add" class="d-flex gap-2 mb-2">
+          <input type="hidden" name="building_id" value="{{ building_id or '' }}">
+          <input class="form-control form-control-sm" name="name" placeholder="New floor..." {% if not building_id %}disabled{% endif %} required>
+          <button class="btn btn-sm btn-primary" {% if not building_id %}disabled{% endif %}>Add</button>
+        </form>
+
+        <div class="list-group list-group-sm">
+          {% for f in floors %}
+            <a class="list-group-item list-group-item-action {% if floor_id==f.id %}active{% endif %}"
+               href="/locations?building_id={{ building_id }}&floor_id={{ f.id }}">
+              {{ f.name }}
+            </a>
+          {% endfor %}
+          {% if not building_id %}
+            <div class="small text-muted">Select a building.</div>
+          {% elif not floors %}
+            <div class="small text-muted">No floors here.</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-3">
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <div class="fw-semibold mb-2">Sections</div>
+
+        <form method="post" action="/locations/sections/add" class="d-flex gap-2 mb-2">
+          <input type="hidden" name="building_id" value="{{ building_id or '' }}">
+          <input type="hidden" name="floor_id" value="{{ floor_id or '' }}">
+          <input class="form-control form-control-sm" name="name" placeholder="New section..." {% if not floor_id %}disabled{% endif %} required>
+          <button class="btn btn-sm btn-primary" {% if not floor_id %}disabled{% endif %}>Add</button>
+        </form>
+
+        <div class="list-group list-group-sm">
+          {% for s in sections %}
+            <a class="list-group-item list-group-item-action {% if section_id==s.id %}active{% endif %}"
+               href="/locations?building_id={{ building_id }}&floor_id={{ floor_id }}&section_id={{ s.id }}">
+              {{ s.name }}
+            </a>
+          {% endfor %}
+          {% if not floor_id %}
+            <div class="small text-muted">Select a floor.</div>
+          {% elif not sections %}
+            <div class="small text-muted">No sections here.</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-3">
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <div class="fw-semibold mb-2">Rooms</div>
+
+        <form method="post" action="/locations/rooms/add" class="d-flex gap-2 mb-2">
+          <input type="hidden" name="building_id" value="{{ building_id or '' }}">
+          <input type="hidden" name="floor_id" value="{{ floor_id or '' }}">
+          <input type="hidden" name="section_id" value="{{ section_id or '' }}">
+          <input class="form-control form-control-sm" name="name" placeholder="New room..." {% if not section_id %}disabled{% endif %} required>
+          <button class="btn btn-sm btn-primary" {% if not section_id %}disabled{% endif %}>Add</button>
+        </form>
+
+        <div class="list-group list-group-sm">
+          {% for r in rooms %}
+            <div class="list-group-item d-flex justify-content-between align-items-center">
+              <div>{{ r.name }}</div>
+              <form method="post" action="/locations/delete" onsubmit="return confirm('Delete this room?');">
+                <input type="hidden" name="kind" value="room">
+                <input type="hidden" name="id" value="{{ r.id }}">
+                <button class="btn btn-sm btn-outline-danger py-0">x</button>
+              </form>
+            </div>
+          {% endfor %}
+          {% if not section_id %}
+            <div class="small text-muted">Select a section.</div>
+          {% elif not rooms %}
+            <div class="small text-muted">No rooms here.</div>
+          {% endif %}
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+</div>
+
+{% endblock %}

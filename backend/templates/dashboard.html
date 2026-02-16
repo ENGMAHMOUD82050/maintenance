@@ -1,0 +1,778 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+
+<style>
+  .table-compact { font-size: 0.80rem; }
+  .table-compact td, .table-compact th{
+    padding: .20rem .40rem !important;
+    white-space: nowrap !important;
+    vertical-align: middle !important;
+    line-height: 1.15 !important;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .one-line { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .row-selected { outline: 2px solid rgba(13,110,253,.40); outline-offset: -2px; }
+
+  /* Status row colors */
+  .st-new         { background: #f1f3f5 !important; }
+  .st-processing  { background: #fff3bf !important; }
+  .st-waiting     { background: #dbeafe !important; }
+  .st-executed    { background: #d3f9d8 !important; }
+  .st-cancelled   { background: #ffe3e3 !important; }
+  .st-spares      { background: #ffe8cc !important; }
+  .st-closed      { background: #e9ecef !important; color:#495057; }
+
+  .badge { font-size: 0.72rem !important; padding: .14rem .38rem !important; }
+
+  /* SLA highlight + pulse */
+  .sla-row{
+    background: #fff5f5 !important;
+    box-shadow: inset 0 0 0 9999px rgba(220,53,69,.06);
+    animation: slaPulse 1.6s ease-in-out infinite;
+  }
+  @keyframes slaPulse{
+    0%,100% { box-shadow: inset 0 0 0 9999px rgba(220,53,69,.05); }
+    50%     { box-shadow: inset 0 0 0 9999px rgba(220,53,69,.13); }
+  }
+
+  /* NEW badge + small glow */
+  .new-badge{
+    background: rgba(25,135,84,.12) !important;
+    color: #198754 !important;
+    border: 1px solid rgba(25,135,84,.28) !important;
+  }
+
+  /* Close inline button */
+  .btn-close-inline{
+    padding: .10rem .34rem !important;
+    font-size: .72rem !important;
+    line-height: 1.1 !important;
+    border-radius: .4rem !important;
+  }
+
+  /* Tabs */
+  .dash-tabs .nav-link{ padding: .35rem .6rem; font-size: .85rem; }
+  .dash-tabs .nav-link.active{ font-weight: 700; }
+
+  /* Bulk bar */
+  .bulk-bar{
+    position: sticky;
+    top: 56px;
+    z-index: 10;
+    background: #fff;
+    border: 1px solid rgba(0,0,0,.08);
+    border-radius: .75rem;
+    box-shadow: 0 6px 18px rgba(0,0,0,.06);
+    padding: .5rem .6rem;
+  }
+  .bulk-pill{
+    background: rgba(13,110,253,.08);
+    border-radius: 999px;
+    padding: .2rem .6rem;
+    font-size: .82rem;
+  }
+
+  /* Context menu */
+  .ctx-menu{
+    position: fixed;
+    z-index: 9999;
+    min-width: 260px;
+    background: #fff;
+    border: 1px solid rgba(0,0,0,.12);
+    border-radius: .6rem;
+    box-shadow: 0 10px 25px rgba(0,0,0,.15);
+    padding: .35rem;
+    display: none;
+  }
+  .ctx-item{
+    display:flex; align-items:center; gap:.6rem;
+    padding:.45rem .6rem;
+    border-radius:.45rem;
+    cursor:pointer; user-select:none;
+    font-size:.9rem;
+    white-space:nowrap;
+  }
+  .ctx-item:hover{ background: rgba(13,110,253,.08); }
+  .ctx-item.danger:hover{ background: rgba(220,53,69,.08); }
+  .ctx-sep{ height:1px; background: rgba(0,0,0,.08); margin:.35rem 0; }
+  .ctx-subtitle{ padding:.35rem .6rem; font-size:.72rem; color:#6c757d; }
+  .ctx-title{ padding:.35rem .6rem; font-size:.74rem; color:#495057; }
+  .ctx-title b{ font-weight:700; }
+
+  th.col-sel { width: 44px; }
+  th.col-job { width: 78px; }
+  th.col-caller { width: 170px; }
+  th.col-dept { width: 95px; }
+  th.col-error { width: 150px; }
+  th.col-status { width: 190px; }
+  th.col-title { width: 520px; }
+  th.col-loc { width: 320px; }
+  th.col-time { width: 120px; }
+  th.col-dur { width: 90px; }
+</style>
+
+<!-- ===== Tabs ===== -->
+<ul class="nav nav-pills dash-tabs mb-2">
+  <li class="nav-item">
+    <a class="nav-link {% if view=='open' %}active{% endif %}" href="/dashboard?view=open&{{ qs_keep }}">
+      Open ({{ open_total }})
+    </a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link {% if view=='over_sla' %}active{% endif %}" href="/dashboard?view=over_sla&{{ qs_keep }}">
+      Over SLA ({{ over_sla_total }})
+    </a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link {% if view=='closed_today' %}active{% endif %}" href="/dashboard?view=closed_today&{{ qs_keep }}">
+      Closed Today ({{ closed_today_total }})
+    </a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link {% if view=='all' %}active{% endif %}" href="/dashboard?view=all&{{ qs_keep }}">
+      All ({{ all_total }})
+    </a>
+  </li>
+</ul>
+
+<!-- ===== Filters + Search ===== -->
+<div class="mb-2">
+  <form class="d-flex flex-wrap align-items-end gap-2" method="get" action="/dashboard" id="filtersForm">
+    <input type="hidden" name="view" value="{{ view }}">
+
+    <div>
+      <label class="form-label mb-1 small">Search</label>
+      <input type="text" name="q" value="{{ q }}"
+             class="form-control form-control-sm"
+             placeholder="Job #, Name, Title, Location…">
+    </div>
+
+    <div>
+      <label class="form-label mb-1 small">Department</label>
+      <select class="form-select form-select-sm" name="dept" {% if dept_locked %}disabled{% endif %}>
+        <option value="" {% if not selected_dept %}selected{% endif %}>All</option>
+        {% for d in maint_depts %}
+          <option value="{{ d }}" {% if selected_dept==d %}selected{% endif %}>{{ d.upper() }}</option>
+        {% endfor %}
+      </select>
+      {% if dept_locked %}
+        <input type="hidden" name="dept" value="{{ selected_dept }}">
+      {% endif %}
+    </div>
+
+    <div>
+      <label class="form-label mb-1 small">From</label>
+      <input type="date" name="from" value="{{ date_from }}"
+             class="form-control form-control-sm" {% if show_all %}disabled{% endif %}>
+    </div>
+
+    <div>
+      <label class="form-label mb-1 small">To</label>
+      <input type="date" name="to" value="{{ date_to }}"
+             class="form-control form-control-sm" {% if show_all %}disabled{% endif %}>
+    </div>
+
+    <div>
+      <label class="form-label mb-1 small">Per Page</label>
+      <select name="per" class="form-select form-select-sm">
+        {% for p in [100,200,500,1000] %}
+          <option value="{{ p }}" {% if per_page==p %}selected{% endif %}>{{ p }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <input type="hidden" name="page" value="1">
+
+    <div class="d-flex gap-2">
+      <button class="btn btn-sm btn-primary">Apply</button>
+
+      {% if show_all %}
+        <a class="btn btn-sm btn-outline-secondary"
+           href="/dashboard?view={{ view }}&from={{ date_from }}&to={{ date_to }}&per={{ per_page }}">Back</a>
+      {% else %}
+        <a class="btn btn-sm btn-outline-secondary"
+           href="/dashboard?view={{ view }}&all=1&per={{ per_page }}">Show All</a>
+      {% endif %}
+    </div>
+  </form>
+</div>
+
+<!-- ===== Bulk Actions Bar ===== -->
+<div class="bulk-bar mb-2 d-flex flex-wrap align-items-center justify-content-between gap-2">
+  <div class="d-flex align-items-center gap-2">
+    <span class="bulk-pill">Selected: <b id="selCount">0</b></span>
+    <button class="btn btn-sm btn-outline-secondary" type="button" id="btnClearSel" disabled>Clear</button>
+  </div>
+
+  <div class="d-flex align-items-center flex-wrap gap-2">
+    <select class="form-select form-select-sm" id="bulkStatus" style="min-width: 210px;">
+      <option value="">Bulk Status…</option>
+      {% for val, label in status_choices %}
+        <option value="{{ val }}">{{ label }}</option>
+      {% endfor %}
+    </select>
+
+    <button class="btn btn-sm btn-outline-primary" type="button" id="btnBulkApply" disabled>Apply</button>
+    <button class="btn btn-sm btn-outline-danger" type="button" id="btnBulkClose" disabled>Close</button>
+    <button class="btn btn-sm btn-outline-secondary" type="button" id="btnBulkPrint" disabled>Print</button>
+
+    <span class="text-muted small d-none d-lg-inline">
+      Shortcuts: Enter=Open • P=Print • C=Close • 1/2/3/4=Status • Esc=Clear
+    </span>
+  </div>
+</div>
+
+<!-- ===== Pagination ===== -->
+<div class="d-flex justify-content-between align-items-center mb-2">
+  <div class="small text-muted">
+    Page {{ page }} / {{ total_pages }} • Total <span id="totalLabel">{{ total }}</span>
+    <span class="ms-2 text-muted" id="refreshLabel" style="display:none;">Refreshing…</span>
+  </div>
+  <div class="btn-group btn-group-sm">
+    <a class="btn btn-outline-secondary {% if not has_prev %}disabled{% endif %}"
+       href="/dashboard?{{ qs_no_page }}&page={{ page-1 }}">Prev</a>
+    <a class="btn btn-outline-secondary {% if not has_next %}disabled{% endif %}"
+       href="/dashboard?{{ qs_no_page }}&page={{ page+1 }}">Next</a>
+  </div>
+</div>
+
+<!-- ===== Tickets Table ===== -->
+<div class="card shadow-sm">
+  <div class="card-body py-2">
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+      <h6 class="mb-0">Tickets</h6>
+      <div class="d-flex gap-2">
+        <a class="btn btn-sm btn-outline-primary" href="/tickets/create">Create Ticket</a>
+      </div>
+    </div>
+
+    <div class="text-muted small mt-1">
+      NEW = last 15 minutes • SLA = over priority SLA • Close inline appears when Executed/Cancelled.
+    </div>
+
+    <div class="table-responsive mt-2">
+      <table class="table table-sm table-striped align-middle mb-0 table-compact" id="ticketsTable">
+        <thead>
+          <tr>
+            <th class="col-sel"><input class="form-check-input" type="checkbox" id="chkAll"></th>
+            <th class="col-job">Job No</th>
+            <th class="col-caller">Caller</th>
+            <th class="col-dept">Dept</th>
+            <th class="col-error">Error</th>
+            <th class="col-status">Status</th>
+            <th class="col-title">Title</th>
+            <th class="col-loc">Location</th>
+            <th class="col-time">Start</th>
+            <th class="col-time">End</th>
+            <th class="col-dur">Dur</th>
+          </tr>
+        </thead>
+
+        <tbody id="ticketsBody">
+          {% for t in recent_tickets %}
+            {% set st = (t.status or '') %}
+            {% set rowcls = '' %}
+            {% if st == 'new' %}{% set rowcls = 'st-new' %}
+            {% elif st == 'processing' %}{% set rowcls = 'st-processing' %}
+            {% elif st == 'waiting' %}{% set rowcls = 'st-waiting' %}
+            {% elif st == 'executed' %}{% set rowcls = 'st-executed' %}
+            {% elif st == 'cancelled' %}{% set rowcls = 'st-cancelled' %}
+            {% elif st == 'Needs Spare Parts' %}{% set rowcls = 'st-spares' %}
+            {% elif st == 'closed' %}{% set rowcls = 'st-closed' %}
+            {% endif %}
+
+            <tr class="ticket-row {{ rowcls }} {% if t.over_sla %}sla-row{% endif %}"
+                data-ticket-id="{{ t.id }}"
+                data-ticket-no="{{ t.ticket_no }}"
+                data-ticket-status="{{ t.status }}"
+                data-return-to="{{ request.full_path }}">
+
+              <td><input class="form-check-input chkRow" type="checkbox" data-id="{{ t.id }}"></td>
+
+              <td class="fw-semibold one-line" title="#{{ t.ticket_no }}">#{{ t.ticket_no }}</td>
+              <td class="one-line" title="{{ t.caller or '' }}">{{ t.caller or '-' }}</td>
+
+              <td class="one-line" title="{{ t.dept or '' }}">
+                <span class="badge bg-secondary">{{ t.dept or '-' }}</span>
+              </td>
+
+              <td class="one-line" title="{{ t.error_name or '' }}">{{ t.error_name or '-' }}</td>
+
+              <td class="one-line" title="{{ t.status or '' }}">
+                <span class="badge bg-light text-dark border">{{ t.status or '-' }}</span>
+
+                {% if t.is_new %}
+                  <span class="badge new-badge">NEW</span>
+                {% endif %}
+
+                {% if t.over_sla %}
+                  <span class="badge bg-danger">SLA</span>
+                {% endif %}
+
+                {% if t.can_close %}
+                  <button class="btn btn-success btn-close-inline ms-1 btnInlineClose" type="button"
+                          data-id="{{ t.id }}" title="Close ticket quickly">
+                    Close
+                  </button>
+                {% endif %}
+              </td>
+
+              <td class="one-line" title="{{ t.title or '' }}">{{ t.title or '-' }}</td>
+
+              <td class="one-line"
+                  title="{{ (t.building or '-') ~ ' / ' ~ (t.floor or '-') ~ ' / ' ~ (t.section or '-') ~ ' / ' ~ (t.room or '-') }}">
+                {{ t.building or '-' }} / {{ t.floor or '-' }} / {{ t.section or '-' }} / {{ t.room or '-' }}
+              </td>
+
+              <td class="one-line" title="{{ t.started_full if t.started_full else '-' }}">
+                {{ t.started_hm if t.started_hm else '-' }}
+              </td>
+
+              <td class="one-line" title="{{ t.ended_full if t.ended_full else '-' }}">
+                {{ t.ended_hm if t.ended_hm else '-' }}
+              </td>
+
+              <td class="one-line" title="{{ t.duration_text or '' }}">{{ t.duration_text or '-' }}</td>
+            </tr>
+          {% endfor %}
+
+          {% if recent_tickets|length == 0 %}
+          <tr><td colspan="11" class="text-muted text-center py-4">No tickets found.</td></tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Context Menu -->
+<div class="ctx-menu" id="ctxMenu">
+  <div class="ctx-title">Selected: <b id="ctxTicketNo">-</b></div>
+  <div class="ctx-sep"></div>
+
+  <div class="ctx-item" id="ctxOpen"><span>Open Ticket</span></div>
+  <div class="ctx-item" id="ctxPrint"><span>Print Work Order</span></div>
+
+  <div class="ctx-item danger" id="ctxClose" style="display:none;"><span>Close Ticket</span></div>
+
+  <div class="ctx-sep"></div>
+  <div class="ctx-subtitle">Change Status</div>
+
+  {% for val, label in status_choices %}
+    <div class="ctx-item ctx-status" data-status="{{ val }}"><span>{{ label }}</span></div>
+  {% endfor %}
+</div>
+
+<form id="quickUpdateForm" method="post" style="display:none;">
+  <input type="hidden" name="action" id="quAction" value="update">
+  <input type="hidden" name="status" id="quStatus">
+  <input type="hidden" name="return_to" id="quReturnTo">
+</form>
+
+<form id="bulkForm" method="post" action="/tickets/bulk-update" style="display:none;">
+  <input type="hidden" name="ids" id="bulkIds">
+  <input type="hidden" name="action" id="bulkAction">
+  <input type="hidden" name="status" id="bulkStatusHidden">
+  <input type="hidden" name="return_to" id="bulkReturnTo">
+</form>
+
+<script>
+(function(){
+  const tableBody = document.getElementById("ticketsBody");
+  const rows = ()=> Array.from(document.querySelectorAll(".ticket-row"));
+  const ctxMenu = document.getElementById("ctxMenu");
+  const ctxTicketNo = document.getElementById("ctxTicketNo");
+  const ctxOpen = document.getElementById("ctxOpen");
+  const ctxPrint = document.getElementById("ctxPrint");
+  const ctxClose = document.getElementById("ctxClose");
+  const ctxStatusItems = Array.from(document.querySelectorAll(".ctx-status"));
+
+  const quickUpdateForm = document.getElementById("quickUpdateForm");
+  const quAction = document.getElementById("quAction");
+  const quStatus = document.getElementById("quStatus");
+  const quReturnTo = document.getElementById("quReturnTo");
+
+  const chkAll = document.getElementById("chkAll");
+  const selCount = document.getElementById("selCount");
+  const btnClearSel = document.getElementById("btnClearSel");
+
+  const bulkStatus = document.getElementById("bulkStatus");
+  const btnBulkApply = document.getElementById("btnBulkApply");
+  const btnBulkClose = document.getElementById("btnBulkClose");
+  const btnBulkPrint = document.getElementById("btnBulkPrint");
+
+  const bulkForm = document.getElementById("bulkForm");
+  const bulkIds = document.getElementById("bulkIds");
+  const bulkAction = document.getElementById("bulkAction");
+  const bulkStatusHidden = document.getElementById("bulkStatusHidden");
+  const bulkReturnTo = document.getElementById("bulkReturnTo");
+
+  const totalLabel = document.getElementById("totalLabel");
+  const refreshLabel = document.getElementById("refreshLabel");
+
+  let selectedRow = null;
+  let selectedTicketId = null;
+  let selectedTicketNo = null;
+  let selectedReturnTo = null;
+  let selectedStatus = null;
+
+  let lastCheckedIndex = null;
+
+  function hideMenu(){ if(ctxMenu) ctxMenu.style.display = "none"; }
+  function showMenu(x, y){
+    if(!ctxMenu) return;
+    ctxMenu.style.display = "block";
+    const vw = window.innerWidth, vh = window.innerHeight;
+    const rect = ctxMenu.getBoundingClientRect();
+    let left = x, top = y;
+    if (left + rect.width > vw - 8) left = vw - rect.width - 8;
+    if (top + rect.height > vh - 8) top = vh - rect.height - 8;
+    if (left < 8) left = 8;
+    if (top < 8) top = 8;
+    ctxMenu.style.left = left + "px";
+    ctxMenu.style.top = top + "px";
+  }
+
+  function selectRow(row){
+    if(!row) return;
+    if(selectedRow) selectedRow.classList.remove("row-selected");
+    selectedRow = row;
+    selectedRow.classList.add("row-selected");
+
+    selectedTicketId = row.getAttribute("data-ticket-id");
+    selectedTicketNo = row.getAttribute("data-ticket-no");
+    selectedReturnTo = row.getAttribute("data-return-to") || "/dashboard";
+    selectedStatus = row.getAttribute("data-ticket-status") || "";
+
+    if(ctxTicketNo) ctxTicketNo.textContent = "#" + (selectedTicketNo || "-");
+
+    if(ctxClose){
+      const canClose = (selectedStatus === "executed" || selectedStatus === "cancelled");
+      ctxClose.style.display = canClose ? "flex" : "none";
+    }
+  }
+
+  function openTicket(){
+    if(!selectedTicketId) return;
+    window.location.href = "/tickets/" + selectedTicketId;
+  }
+  function printTicket(id){
+    const tid = id || selectedTicketId;
+    if(!tid) return;
+    window.open("/print/work-order/" + tid, "_blank");
+  }
+
+  function postStatus(statusValue){
+    if(!selectedTicketId) return;
+    quAction.value = "update";
+    quStatus.value = statusValue;
+    quReturnTo.value = selectedReturnTo || "/dashboard";
+    quickUpdateForm.action = "/tickets/" + selectedTicketId + "/quick-update";
+    quickUpdateForm.submit();
+  }
+
+  function postClose(ticketIdOverride){
+    const tid = ticketIdOverride || selectedTicketId;
+    if(!tid) return;
+    quAction.value = "close";
+    quStatus.value = "";
+    quReturnTo.value = (selectedReturnTo || (window.location.pathname + window.location.search)) || "/dashboard";
+    quickUpdateForm.action = "/tickets/" + tid + "/quick-update";
+    quickUpdateForm.submit();
+  }
+
+  function getSelectedIds(){
+    const chks = Array.from(document.querySelectorAll(".chkRow"));
+    return chks.filter(c=>c.checked).map(c=>c.getAttribute("data-id"));
+  }
+
+  function updateBulkUI(){
+    const ids = getSelectedIds();
+    const n = ids.length;
+    selCount.textContent = n;
+    const enabled = n > 0;
+    btnClearSel.disabled = !enabled;
+    btnBulkApply.disabled = !enabled || !bulkStatus.value;
+    btnBulkClose.disabled = !enabled;
+    btnBulkPrint.disabled = !enabled;
+    if(chkAll){
+      const all = Array.from(document.querySelectorAll(".chkRow"));
+      chkAll.checked = all.length > 0 && all.every(c=>c.checked);
+      chkAll.indeterminate = all.some(c=>c.checked) && !chkAll.checked;
+    }
+  }
+
+  function clearSelection(){
+    document.querySelectorAll(".chkRow").forEach(c=> c.checked = false);
+    if(chkAll){ chkAll.checked = false; chkAll.indeterminate = false; }
+    updateBulkUI();
+  }
+
+  function bulkSubmit(action, statusValue){
+    const ids = getSelectedIds();
+    if(!ids.length) return;
+    bulkIds.value = ids.join(",");
+    bulkAction.value = action;
+    bulkStatusHidden.value = statusValue || "";
+    bulkReturnTo.value = window.location.pathname + window.location.search;
+    bulkForm.submit();
+  }
+
+  function bindInlineCloseButtons(){
+    document.querySelectorAll(".btnInlineClose").forEach(btn=>{
+      btn.addEventListener("click", (e)=>{
+        e.stopPropagation();
+        const id = btn.getAttribute("data-id");
+        postClose(id);
+      });
+    });
+  }
+
+  function bindRowEvents(){
+    rows().forEach((row)=>{
+      row.addEventListener("click", (e)=>{
+        if(e.target && e.target.classList && (e.target.classList.contains("chkRow") || e.target.classList.contains("btnInlineClose"))) return;
+        selectRow(row);
+        hideMenu();
+      });
+
+      row.addEventListener("dblclick", (e)=>{
+        if(e.target && e.target.classList && (e.target.classList.contains("chkRow") || e.target.classList.contains("btnInlineClose"))) return;
+        selectRow(row);
+        hideMenu();
+        openTicket();
+      });
+
+      row.addEventListener("contextmenu", (e)=>{
+        e.preventDefault();
+        selectRow(row);
+        showMenu(e.clientX, e.clientY);
+      });
+
+      const chk = row.querySelector(".chkRow");
+      if(chk){
+        chk.addEventListener("click", (e)=>{
+          e.stopPropagation();
+          const allChks = Array.from(document.querySelectorAll(".chkRow"));
+          const currentIndex = allChks.indexOf(chk);
+
+          if(e.shiftKey && lastCheckedIndex !== null){
+            const [a,b] = [lastCheckedIndex, currentIndex].sort((x,y)=>x-y);
+            const targetState = chk.checked;
+            for(let i=a;i<=b;i++){
+              allChks[i].checked = targetState;
+            }
+          }
+          lastCheckedIndex = currentIndex;
+          updateBulkUI();
+        });
+      }
+    });
+
+    bindInlineCloseButtons();
+    updateBulkUI();
+  }
+
+  // Context menu actions
+  if(ctxOpen) ctxOpen.addEventListener("click", ()=>{ hideMenu(); openTicket(); });
+  if(ctxPrint) ctxPrint.addEventListener("click", ()=>{ hideMenu(); printTicket(); });
+  if(ctxClose) ctxClose.addEventListener("click", ()=>{ hideMenu(); postClose(); });
+
+  ctxStatusItems.forEach(item=>{
+    item.addEventListener("click", ()=>{
+      const st = item.getAttribute("data-status");
+      hideMenu();
+      postStatus(st);
+    });
+  });
+
+  document.addEventListener("click", (e)=>{
+    if(ctxMenu && !ctxMenu.contains(e.target)) hideMenu();
+  });
+  document.addEventListener("scroll", hideMenu, true);
+  window.addEventListener("resize", hideMenu);
+
+  if(chkAll){
+    chkAll.addEventListener("change", ()=>{
+      document.querySelectorAll(".chkRow").forEach(c=> c.checked = chkAll.checked);
+      updateBulkUI();
+    });
+  }
+
+  if(bulkStatus){
+    bulkStatus.addEventListener("change", updateBulkUI);
+  }
+  if(btnClearSel){
+    btnClearSel.addEventListener("click", clearSelection);
+  }
+  if(btnBulkApply){
+    btnBulkApply.addEventListener("click", ()=>{
+      if(!bulkStatus.value) return;
+      bulkSubmit("status", bulkStatus.value);
+    });
+  }
+  if(btnBulkClose){
+    btnBulkClose.addEventListener("click", ()=> bulkSubmit("close",""));
+  }
+  if(btnBulkPrint){
+    btnBulkPrint.addEventListener("click", ()=>{
+      const ids = getSelectedIds();
+      let i = 0;
+      function next(){
+        if(i >= ids.length) return;
+        printTicket(ids[i]);
+        i += 1;
+        setTimeout(next, 250);
+      }
+      next();
+    });
+  }
+
+  // Keyboard shortcuts
+  document.addEventListener("keydown", (e)=>{
+    const tag = (e.target && e.target.tagName) ? e.target.tagName.toLowerCase() : "";
+    const isTyping = (tag === "input" || tag === "textarea" || tag === "select");
+    if(isTyping) return;
+
+    if(e.key === "Escape"){
+      hideMenu();
+      clearSelection();
+      if(selectedRow) selectedRow.classList.remove("row-selected");
+      selectedRow = null;
+      selectedTicketId = null;
+      selectedTicketNo = null;
+      selectedStatus = null;
+      return;
+    }
+
+    if(e.key === "Enter"){
+      if(selectedTicketId){ e.preventDefault(); openTicket(); }
+      return;
+    }
+
+    if(e.key.toLowerCase() === "p"){
+      if(selectedTicketId){ e.preventDefault(); printTicket(); }
+      return;
+    }
+
+    if(e.key.toLowerCase() === "c"){
+      if(selectedTicketId && (selectedStatus === "executed" || selectedStatus === "cancelled")){
+        e.preventDefault();
+        postClose();
+      }
+      return;
+    }
+
+    const map = { "1":"new", "2":"processing", "3":"waiting", "4":"executed" };
+    if(map[e.key] && selectedTicketId){
+      e.preventDefault();
+      postStatus(map[e.key]);
+    }
+  });
+
+  // ---------- Auto Refresh ----------
+  function snapshotSelection(){
+    const checked = new Set(getSelectedIds());
+    const focused = selectedTicketId ? String(selectedTicketId) : null;
+    return { checked, focused };
+  }
+
+  function restoreSelection(snap){
+    document.querySelectorAll(".chkRow").forEach(chk=>{
+      const id = chk.getAttribute("data-id");
+      chk.checked = snap.checked.has(String(id));
+    });
+    if(snap.focused){
+      const row = document.querySelector(`.ticket-row[data-ticket-id="${snap.focused}"]`);
+      if(row) selectRow(row);
+    }
+    updateBulkUI();
+  }
+
+  function rowClassByStatus(st){
+    if(st === "new") return "st-new";
+    if(st === "processing") return "st-processing";
+    if(st === "waiting") return "st-waiting";
+    if(st === "executed") return "st-executed";
+    if(st === "cancelled") return "st-cancelled";
+    if(st === "Needs Spare Parts") return "st-spares";
+    if(st === "closed") return "st-closed";
+    return "";
+  }
+
+  function renderRows(list){
+    let html = "";
+    if(!list || !list.length){
+      tableBody.innerHTML = `<tr><td colspan="11" class="text-muted text-center py-4">No tickets found.</td></tr>`;
+      bindRowEvents();
+      return;
+    }
+
+    for(const t of list){
+      const cls = rowClassByStatus(t.status);
+      const slaCls = t.over_sla ? " sla-row" : "";
+      const locTitle = `${t.building || "-"} / ${t.floor || "-"} / ${t.section || "-"} / ${t.room || "-"}`;
+
+      const badges = `
+        <span class="badge bg-light text-dark border">${(t.status||"-")}</span>
+        ${t.is_new ? `<span class="badge new-badge">NEW</span>` : ``}
+        ${t.over_sla ? `<span class="badge bg-danger">SLA</span>` : ``}
+        ${t.can_close ? `<button class="btn btn-success btn-close-inline ms-1 btnInlineClose" type="button" data-id="${t.id}">Close</button>` : ``}
+      `;
+
+      html += `
+      <tr class="ticket-row ${cls}${slaCls}"
+          data-ticket-id="${t.id}"
+          data-ticket-no="${t.ticket_no}"
+          data-ticket-status="${t.status || ""}"
+          data-return-to="${window.location.pathname + window.location.search}">
+        <td><input class="form-check-input chkRow" type="checkbox" data-id="${t.id}"></td>
+        <td class="fw-semibold one-line" title="#${t.ticket_no}">#${t.ticket_no}</td>
+        <td class="one-line" title="${(t.caller||"")}">${(t.caller||"-")}</td>
+        <td class="one-line" title="${(t.dept||"")}"><span class="badge bg-secondary">${(t.dept||"-")}</span></td>
+        <td class="one-line" title="${(t.error_name||"")}">${(t.error_name||"-")}</td>
+        <td class="one-line" title="${(t.status||"")}">${badges}</td>
+        <td class="one-line" title="${(t.title||"")}">${(t.title||"-")}</td>
+        <td class="one-line" title="${locTitle}">${locTitle}</td>
+        <td class="one-line" title="${t.started_full || "-"}">${t.started_hm || "-"}</td>
+        <td class="one-line" title="${t.ended_full || "-"}">${t.ended_hm || "-"}</td>
+        <td class="one-line" title="${(t.duration_text||"")}">${(t.duration_text||"-")}</td>
+      </tr>`;
+    }
+    tableBody.innerHTML = html;
+    bindRowEvents();
+  }
+
+  async function autoRefresh(){
+    try{
+      if(refreshLabel) refreshLabel.style.display = "inline";
+      const snap = snapshotSelection();
+      const url = "/api/dashboard/tickets" + (window.location.search || "");
+      const res = await fetch(url, { headers: { "Accept": "application/json" }});
+      if(!res.ok) throw new Error("refresh failed");
+      const data = await res.json();
+
+      if(totalLabel && typeof data.total === "number") totalLabel.textContent = data.total;
+
+      renderRows(data.items || []);
+      restoreSelection(snap);
+
+    }catch(e){
+      // ignore silently
+    }finally{
+      if(refreshLabel) refreshLabel.style.display = "none";
+    }
+  }
+
+  // Initial bind
+  bindRowEvents();
+
+  // Refresh every 15 seconds
+  setInterval(autoRefresh, 15000);
+
+})();
+</script>
+
+{% endblock %}

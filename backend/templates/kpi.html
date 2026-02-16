@@ -1,0 +1,490 @@
+{% extends "base.html" %}
+{% block title %}KPI Reports{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-end justify-content-between flex-wrap gap-2 mb-3">
+  <div>
+    <h3 class="mb-0">KPI Reports</h3>
+    <div class="text-muted small">
+      KPI + Backlog + Aging + SLA Compliance
+      {% if selected_dept %}
+        • Department: <b>{{ selected_dept.upper() }}</b>
+      {% else %}
+        • Department: <b>ALL</b>
+      {% endif %}
+    </div>
+  </div>
+
+  <form class="d-flex align-items-end gap-2 flex-wrap" method="get" action="/kpi">
+    <div>
+      <label class="form-label mb-1 small text-muted">Department</label>
+      <select class="form-select form-select-sm" name="dept" {% if dept_locked %}disabled{% endif %}>
+        <option value="" {% if not selected_dept %}selected{% endif %}>All</option>
+        {% for d in maint_depts %}
+          <option value="{{ d }}" {% if selected_dept==d %}selected{% endif %}>{{ d.upper() }}</option>
+        {% endfor %}
+      </select>
+      {% if dept_locked %}
+        <input type="hidden" name="dept" value="{{ selected_dept }}">
+      {% endif %}
+    </div>
+
+    <div>
+      <label class="form-label mb-1 small text-muted">From</label>
+      <input type="date" class="form-control form-control-sm" name="from" value="{{ date_from }}">
+    </div>
+
+    <div>
+      <label class="form-label mb-1 small text-muted">To</label>
+      <input type="date" class="form-control form-control-sm" name="to" value="{{ date_to }}">
+    </div>
+
+    <div class="d-flex gap-2">
+      <button class="btn btn-sm btn-primary" type="submit">
+        <i class="bi bi-funnel me-1"></i>Apply
+      </button>
+
+      <a class="btn btn-sm btn-outline-secondary"
+         href="/kpi{% if selected_dept %}?dept={{ selected_dept }}{% endif %}">
+        <i class="bi bi-arrow-counterclockwise me-1"></i>Reset
+      </a>
+
+      <a class="btn btn-sm btn-success"
+         href="/kpi/export.xlsx?dept={{ selected_dept }}&from={{ date_from }}&to={{ date_to }}">
+        <i class="bi bi-file-earmark-excel me-1"></i>Export Excel
+      </a>
+    </div>
+  </form>
+</div>
+
+<!-- ✅ Department Comparison (ALL only) -->
+{% if show_dept_compare %}
+<div class="card shadow-sm mb-3">
+  <div class="card-body">
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+      <h6 class="mb-0">
+        <i class="bi bi-diagram-3 me-1"></i>Department Comparison (All Departments)
+      </h6>
+      <div class="text-muted small">Rank by SLA Rate + Aging Risk</div>
+    </div>
+
+    <div class="row g-2 mt-2">
+      <div class="col-12 col-lg-4">
+        <div class="border rounded p-2 bg-light">
+          <div class="text-muted small">Best SLA</div>
+          <div class="fw-semibold">{% if best_sla %}{{ best_sla.dept }}{% else %}-{% endif %}</div>
+          <div class="text-muted small">{% if best_sla and best_sla.sla_rate is not none %}{{ best_sla.sla_rate }}%{% else %}-{% endif %}</div>
+        </div>
+      </div>
+      <div class="col-12 col-lg-4">
+        <div class="border rounded p-2 bg-light">
+          <div class="text-muted small">Worst SLA</div>
+          <div class="fw-semibold">{% if worst_sla %}{{ worst_sla.dept }}{% else %}-{% endif %}</div>
+          <div class="text-muted small">{% if worst_sla and worst_sla.sla_rate is not none %}{{ worst_sla.sla_rate }}%{% else %}-{% endif %}</div>
+        </div>
+      </div>
+      <div class="col-12 col-lg-4">
+        <div class="border rounded p-2 bg-light">
+          <div class="text-muted small">Highest Aging Risk (&gt; 7 days open)</div>
+          <div class="fw-semibold">{% if worst_aging %}{{ worst_aging.dept }}{% else %}-{% endif %}</div>
+          <div class="text-muted small">{% if worst_aging %}{{ worst_aging.aging_7_plus }} tickets{% else %}-{% endif %}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="table-responsive mt-3">
+      <table class="table table-sm table-striped align-middle mb-0">
+        <thead>
+          <tr>
+            <th style="width:120px">Dept</th>
+            <th style="width:110px">Created</th>
+            <th style="width:110px">Closed</th>
+            <th style="width:110px">Backlog</th>
+            <th style="width:120px">SLA Met</th>
+            <th style="width:140px">SLA Breached</th>
+            <th style="width:140px">SLA Pending</th>
+            <th style="width:120px">SLA Rate</th>
+            <th style="width:160px">&gt; 7 days open</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in dept_compare_rows %}
+          <tr>
+            <td class="fw-semibold">{{ r.dept }}</td>
+            <td>{{ r.created }}</td>
+            <td>{{ r.closed }}</td>
+            <td>{{ r.backlog }}</td>
+            <td>{{ r.sla_met }}</td>
+            <td>{{ r.sla_breached }}</td>
+            <td>{{ r.sla_pending }}</td>
+            <td>{% if r.sla_rate is none %}-{% else %}{{ r.sla_rate }}%{% endif %}</td>
+            <td>{{ r.aging_7_plus }}</td>
+          </tr>
+          {% endfor %}
+          {% if dept_compare_rows|length == 0 %}
+          <tr><td colspan="9" class="text-muted text-center py-3">No data.</td></tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- Range KPI Cards -->
+<div class="row g-2 mb-3">
+  <div class="col-12 col-md-3">
+    <div class="card shadow-sm">
+      <div class="card-body py-2">
+        <div class="text-muted small"><i class="bi bi-plus-circle me-1"></i>Created (in range)</div>
+        <div class="h3 fw-semibold mb-0">{{ created_count }}</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12 col-md-3">
+    <div class="card shadow-sm">
+      <div class="card-body py-2">
+        <div class="text-muted small"><i class="bi bi-folder2-open me-1"></i>Open (in range)</div>
+        <div class="h3 fw-semibold mb-0">{{ open_in_range_count }}</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12 col-md-3">
+    <div class="card shadow-sm">
+      <div class="card-body py-2">
+        <div class="text-muted small"><i class="bi bi-check2-circle me-1"></i>Closed (in range)</div>
+        <div class="h3 fw-semibold mb-0">{{ closed_count }}</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12 col-md-3">
+    <div class="card shadow-sm">
+      <div class="card-body py-2">
+        <div class="text-muted small"><i class="bi bi-hourglass-split me-1"></i>Avg Close Time (hours)</div>
+        <div class="h3 fw-semibold mb-0">{% if avg_close_hours is none %}-{% else %}{{ avg_close_hours }}{% endif %}</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Backlog NOW + Aging (with charts) -->
+<div class="row g-2 mb-3">
+  <div class="col-12 col-lg-4">
+    <div class="card shadow-sm h-100">
+      <div class="card-body">
+        <h6 class="mb-2"><i class="bi bi-inbox me-1"></i>Backlog (Open Now)</h6>
+        <div class="display-6 fw-semibold">{{ backlog_now }}</div>
+        <div class="text-muted small">All open tickets right now (in selected department).</div>
+
+        <hr class="my-3">
+
+        <div class="text-muted small mb-2">Aging Snapshot</div>
+        <div style="height:190px;">
+          <canvas id="agingChart"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12 col-lg-8">
+    <div class="card shadow-sm h-100">
+      <div class="card-body">
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+          <h6 class="mb-2"><i class="bi bi-clock-history me-1"></i>Aging Buckets (Open Now)</h6>
+          <div class="text-muted small">Highlights delayed open tickets (aging risk).</div>
+        </div>
+
+        <div style="height:220px;" class="mb-3">
+          <canvas id="agingBarChart"></canvas>
+        </div>
+
+        <div class="table-responsive">
+          <table class="table table-sm table-striped align-middle mb-0">
+            <thead>
+              <tr>
+                <th>Bucket</th>
+                <th style="width:160px">Count</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for label, cnt in aging_buckets %}
+              <tr>
+                <td>{{ label }}</td>
+                <td>{{ cnt }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SLA Summary (with chart) -->
+<div class="card shadow-sm mb-3">
+  <div class="card-body">
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+      <h6 class="mb-0"><i class="bi bi-shield-check me-1"></i>SLA Compliance (Tickets Created in Range)</h6>
+      <div class="text-muted small">Urgent 6h • High 16h • Medium 24h • Low 48h</div>
+    </div>
+
+    <div class="row g-2 mt-2">
+      <div class="col-12 col-md-3">
+        <div class="border rounded p-2 bg-light">
+          <div class="text-muted small">Met</div>
+          <div class="h4 fw-semibold mb-0">{{ sla_met }}</div>
+        </div>
+      </div>
+      <div class="col-12 col-md-3">
+        <div class="border rounded p-2 bg-light">
+          <div class="text-muted small">Breached</div>
+          <div class="h4 fw-semibold mb-0">{{ sla_breached }}</div>
+        </div>
+      </div>
+      <div class="col-12 col-md-3">
+        <div class="border rounded p-2 bg-light">
+          <div class="text-muted small">Pending (not closed yet)</div>
+          <div class="h4 fw-semibold mb-0">{{ sla_pending }}</div>
+        </div>
+      </div>
+      <div class="col-12 col-md-3">
+        <div class="border rounded p-2 bg-light">
+          <div class="text-muted small">SLA Rate (Met / (Met+Breached))</div>
+          <div class="h4 fw-semibold mb-0">{% if sla_rate is none %}-{% else %}{{ sla_rate }}%{% endif %}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="row g-2 mt-3">
+      <div class="col-12 col-lg-5">
+        <div style="height:240px;">
+          <canvas id="slaPieChart"></canvas>
+        </div>
+        <div class="text-muted small mt-2">Pending tickets are excluded from the rate until closed.</div>
+      </div>
+
+      <div class="col-12 col-lg-7">
+        <div style="height:240px;">
+          <canvas id="slaPriorityChart"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <div class="table-responsive mt-3">
+      <table class="table table-sm table-striped align-middle mb-0">
+        <thead>
+          <tr>
+            <th>Priority</th>
+            <th style="width:110px">SLA (h)</th>
+            <th style="width:110px">Met</th>
+            <th style="width:110px">Breached</th>
+            <th style="width:130px">Pending</th>
+            <th style="width:120px">Rate</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in sla_priority_rows %}
+          <tr>
+            <td class="fw-semibold">{{ r.priority }}</td>
+            <td>{{ r.sla_hours }}</td>
+            <td>{{ r.met }}</td>
+            <td>{{ r.breached }}</td>
+            <td>{{ r.pending }}</td>
+            <td>{% if r.rate is none %}-{% else %}{{ r.rate }}%{% endif %}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+  </div>
+</div>
+
+<!-- Trend (Chart + table) -->
+<div class="card shadow-sm mb-3">
+  <div class="card-body">
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+      <h6 class="mb-2"><i class="bi bi-graph-up me-1"></i>Daily Created Trend (last 31 days max)</h6>
+      <div class="text-muted small">{{ date_from }} → {{ date_to }}</div>
+    </div>
+
+    <div style="height:240px;" class="mb-3">
+      <canvas id="trendChart"></canvas>
+    </div>
+
+    <div class="table-responsive">
+      <table class="table table-sm table-striped align-middle mb-0">
+        <thead>
+          <tr>
+            <th style="width:160px">Date</th>
+            <th>Created Count</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for d, c in zip(trend_labels, trend_values) %}
+          <tr>
+            <td>{{ d }}</td>
+            <td>{{ c }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Top Buildings -->
+<div class="card shadow-sm mb-3">
+  <div class="card-body">
+    <h6 class="mb-2"><i class="bi bi-buildings me-1"></i>Top Buildings (Created in Range)</h6>
+
+    <div style="height:220px;" class="mb-3">
+      <canvas id="buildingsChart"></canvas>
+    </div>
+
+    <div class="table-responsive">
+      <table class="table table-sm table-striped align-middle mb-0">
+        <thead><tr><th>Building</th><th style="width:140px">Count</th></tr></thead>
+        <tbody>
+          {% for bname, cnt in by_building %}
+          <tr><td>{{ bname if bname else "-" }}</td><td>{{ cnt }}</td></tr>
+          {% endfor %}
+          {% if by_building|length == 0 %}
+          <tr><td colspan="2" class="text-muted text-center py-3">No data.</td></tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+  // --------- Data from server ----------
+  const agingLabels = [{% for label, cnt in aging_buckets %}"{{ label }}"{% if not loop.last %},{% endif %}{% endfor %}];
+  const agingValues = [{% for label, cnt in aging_buckets %}{{ cnt }}{% if not loop.last %},{% endif %}{% endfor %}];
+
+  const trendLabels = [{% for d in trend_labels %}"{{ d }}"{% if not loop.last %},{% endif %}{% endfor %}];
+  const trendValues = [{% for c in trend_values %}{{ c }}{% if not loop.last %},{% endif %}{% endfor %}];
+
+  const slaMet = {{ sla_met }};
+  const slaBreached = {{ sla_breached }};
+  const slaPending = {{ sla_pending }};
+
+  const slaPriorityLabels = [{% for r in sla_priority_rows %}"{{ r.priority }}"{% if not loop.last %},{% endif %}{% endfor %}];
+  const slaPriorityMet = [{% for r in sla_priority_rows %}{{ r.met }}{% if not loop.last %},{% endif %}{% endfor %}];
+  const slaPriorityBreached = [{% for r in sla_priority_rows %}{{ r.breached }}{% if not loop.last %},{% endif %}{% endfor %}];
+  const slaPriorityPending = [{% for r in sla_priority_rows %}{{ r.pending }}{% if not loop.last %},{% endif %}{% endfor %}];
+
+  const buildingLabels = [{% for bname, cnt in by_building %}"{{ (bname if bname else '-')|replace('"','') }}"{% if not loop.last %},{% endif %}{% endfor %}];
+  const buildingValues = [{% for bname, cnt in by_building %}{{ cnt }}{% if not loop.last %},{% endif %}{% endfor %}];
+
+  // --------- Charts ----------
+  function safeCreateChart(id, cfg){
+    const el = document.getElementById(id);
+    if(!el) return;
+    new Chart(el, cfg);
+  }
+
+  // Aging Doughnut
+  safeCreateChart("agingChart", {
+    type: "doughnut",
+    data: {
+      labels: agingLabels,
+      datasets: [{ data: agingValues }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { position: "bottom" } }
+    }
+  });
+
+  // Aging Bar
+  safeCreateChart("agingBarChart", {
+    type: "bar",
+    data: {
+      labels: agingLabels,
+      datasets: [{ label: "Open Now", data: agingValues }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: { y: { beginAtZero: true } }
+    }
+  });
+
+  // SLA Pie (Met / Breached / Pending)
+  safeCreateChart("slaPieChart", {
+    type: "pie",
+    data: {
+      labels: ["Met", "Breached", "Pending"],
+      datasets: [{ data: [slaMet, slaBreached, slaPending] }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { position: "bottom" } }
+    }
+  });
+
+  // SLA Priority Stacked Bar
+  safeCreateChart("slaPriorityChart", {
+    type: "bar",
+    data: {
+      labels: slaPriorityLabels,
+      datasets: [
+        { label: "Met", data: slaPriorityMet, stack: "sla" },
+        { label: "Breached", data: slaPriorityBreached, stack: "sla" },
+        { label: "Pending", data: slaPriorityPending, stack: "sla" }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        x: { stacked: true },
+        y: { stacked: true, beginAtZero: true }
+      }
+    }
+  });
+
+  // Trend Line
+  safeCreateChart("trendChart", {
+    type: "line",
+    data: {
+      labels: trendLabels,
+      datasets: [{ label: "Created", data: trendValues, tension: 0.25 }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: { y: { beginAtZero: true } }
+    }
+  });
+
+  // Buildings Bar
+  safeCreateChart("buildingsChart", {
+    type: "bar",
+    data: {
+      labels: buildingLabels,
+      datasets: [{ label: "Created", data: buildingValues }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: { y: { beginAtZero: true } }
+    }
+  });
+</script>
+{% endblock %}

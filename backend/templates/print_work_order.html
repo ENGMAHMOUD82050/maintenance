@@ -1,0 +1,503 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Work Order</title>
+
+<style>
+  /* ===== A4 ===== */
+  @page { size: A4; margin: 6mm; }
+  * { box-sizing: border-box; }
+
+  body{
+    margin:0;
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 12.6px;
+    line-height: 1.12;
+    color:#000;
+    background:#fff;
+  }
+
+  .page{
+    border:2px solid #000;
+    width:100%;
+    min-height: 277mm;
+  }
+
+  .header-img{
+    width:100%;
+    display:block;
+    border-bottom:1px solid #000;
+  }
+
+  table{
+    width:100%;
+    border-collapse:collapse;
+    table-layout:fixed;
+  }
+
+  td{
+    border:1px solid #000;
+    padding:3px 5px;
+    vertical-align:middle;
+    word-wrap:break-word;
+  }
+
+  .center{ text-align:center; }
+  .left{ text-align:left; }
+  .bold{ font-weight:bold; }
+  .orange{ color:#d77800; }
+
+  .h1 td{ height:18mm; }
+  .h2 td{ height:15mm; }
+  .h3 td{ height:12mm; }
+  .h-sign td{ height:26mm; }
+
+  .jobno{
+    font-size:20px;
+    font-weight:900;
+    letter-spacing:.4px;
+  }
+
+  .dotline{
+    border-top: 2px dotted #000;
+    height: 0;
+    width: 100%;
+  }
+
+  .report-wrap{ padding: 8px 10px 10px; }
+  .report-title{
+    font-weight: 800;
+    text-align:center;
+    margin: 2px 0 10px;
+    font-size: 13px;
+  }
+
+  .report-line{
+    position: relative;
+    height: 18px;
+    margin: 14px 0;
+  }
+  .report-line .dotline{
+    position:absolute;
+    left:0; right:0;
+    top: 7px;
+  }
+
+  .ar-label{
+    direction: rtl;
+    text-align: right;
+    font-weight: bold;
+  }
+
+  .fill-spacer{ height: 8mm; }
+
+  .spares-wrap{ padding:6px 10px 8px; }
+
+  .spares-title{
+    text-align:center;
+    font-weight:800;
+    margin-bottom:10px;
+    font-size: 14px;
+  }
+
+  .spare-row{
+    position:relative;
+    height:18px;
+    margin:14px 0;
+  }
+
+  .spare-row::before{
+    content:"";
+    position:absolute;
+    left:0;
+    right:0;
+    top:7px;
+    border-top:2px dotted #000;
+  }
+
+  .num-left{
+    position:absolute;
+    left:10px;
+    top:7px;
+    transform:translateY(-60%);
+    background:#fff;
+    padding:0 6px;
+    font-weight:800;
+    direction:ltr;
+    line-height: 1;
+  }
+
+  .num-center{
+    position:absolute;
+    left:50%;
+    top:7px;
+    transform:translate(-50%, -60%);
+    background:#fff;
+    padding:0 6px;
+    font-weight:800;
+    direction:ltr;
+    line-height: 1;
+  }
+
+  .sign-wrap{
+    height:100%;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    padding-top:4px;
+  }
+
+  .sign-title{
+    font-weight:800;
+    text-align:center;
+    margin-bottom:6mm;
+  }
+
+  .sign-line{
+    width:90%;
+    border-top:2px dotted #000;
+    margin-top:2mm;
+  }
+
+  /* وصف العطل */
+  .desc-wrap{
+    width: 100%;
+    text-align: center;
+    white-space: pre-wrap;
+    word-break: break-word;
+    margin: 0;
+    padding: 0;
+    line-height: 1.2;
+    unicode-bidi: plaintext;
+  }
+  .desc-wrap.en{ direction:ltr; }
+  .desc-wrap.ar{ direction:rtl; }
+
+  .desc-row td{
+    vertical-align: top;
+    padding-top: 6px;
+  }
+
+  .pair-label{
+    display:flex;
+    align-items:baseline;
+    justify-content:center;
+    gap:6px;
+    line-height:1.05;
+    white-space:nowrap;
+    font-weight:400;
+  }
+  .pair-label .en{ direction:ltr; }
+  .pair-label .ar{ direction:rtl; }
+  .pair-label .slash{ opacity:0.9; }
+
+  .pair-value{
+    margin-top:4px;
+    text-align:center;
+    font-weight:400;
+  }
+
+  .no-print{ text-align:center; margin:6px; }
+  @media print{ .no-print{display:none;} }
+
+  /* ===== ✅ Print info alignment (المعتمد فقط) ===== */
+  .print-cell{
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
+    height:100%;
+    gap:6px;
+  }
+  .print-line{
+    display:flex;
+    justify-content:space-between;
+    align-items:baseline;
+    width:100%;
+  }
+  .print-label{
+    text-align:left;
+    white-space:nowrap;
+    font-weight:bold;
+  }
+  .print-value{
+    text-align:right;
+    direction:ltr;
+    font-weight:normal;
+  }
+</style>
+</head>
+
+<body>
+<div class="page">
+
+  <img src="/static/header.png" class="header-img" alt="header">
+
+  <!-- Print info -->
+  <table>
+    <tr class="h1">
+      <td class="left">
+        <div class="print-cell">
+          <div class="print-line">
+            <span class="print-label">Print Time</span>
+            <span class="print-value">{{ now_time }}</span>
+          </div>
+          <div class="print-line">
+            <span class="print-label">Print Date</span>
+            <span class="print-value">{{ now_date }}</span>
+          </div>
+        </div>
+      </td>
+
+      <td class="center">
+        <div class="orange bold" style="font-size:17px;">General Maintenance</div>
+        <div class="orange bold" style="font-size:15px; direction:rtl;">الصيانة العامة</div>
+      </td>
+
+      <td class="left">
+        <div class="print-cell">
+          <div class="print-line">
+            <span class="print-label" style="direction:rtl;">وقت الطباعة</span>
+            <span class="print-value">{{ now_time }}</span>
+          </div>
+          <div class="print-line">
+            <span class="print-label" style="direction:rtl;">تاريخ الطباعة</span>
+            <span class="print-value">{{ now_date }}</span>
+          </div>
+        </div>
+      </td>
+    </tr>
+  </table>
+
+  <!-- Job info -->
+  <table>
+    <tr class="h2 center">
+      <td>
+        <div class="pair-label">
+          <span class="en">Job Time</span><span class="slash">/</span><span class="ar">وقت البلاغ</span>
+        </div>
+        <div class="pair-value">{{ t.created_at.strftime("%I:%M %p") }}</div>
+      </td>
+
+      <td>
+        <div class="pair-label">
+          <span class="en">Job Date</span><span class="slash">/</span><span class="ar">تاريخ البلاغ</span>
+        </div>
+        <div class="pair-value">{{ t.created_at.strftime("%d/%m/%Y") }}</div>
+      </td>
+
+      <td>
+        <div class="pair-label">
+          <span class="en">Job No</span><span class="slash">/</span><span class="ar">رقم أمر العمل</span>
+        </div>
+        <div class="pair-value jobno" style="margin-top:2px;">{{ t.ticket_no }}</div>
+      </td>
+
+      <td>
+        <div class="pair-label">
+          <span class="en">Emp No</span><span class="slash">/</span><span class="ar">الرقم الوظيفي</span>
+        </div>
+        <div class="pair-value">{{ current_user.emp_no }}</div>
+      </td>
+
+      <td>
+        <div class="pair-label">
+          <span class="en">Requestor #</span><span class="slash">/</span><span class="ar">التحويلة</span>
+        </div>
+        <div class="pair-value">{{ t.requester_extension }}</div>
+      </td>
+    </tr>
+  </table>
+
+  <!-- User -->
+  <table>
+    <tr class="h3 center">
+      <td>
+        <div class="pair-label">
+          <span class="en">User Name</span><span class="slash">/</span><span class="ar">اسم المستخدم</span>
+        </div>
+
+        <!-- ✅ تعديل واحد فقط هنا: عرض اسم المستخدم المسجّل دخول -->
+        <div class="pair-value" style="font-size:15px; font-weight:800;" dir="auto">
+          {{ current_user.username }}
+        </div>
+
+      </td>
+    </tr>
+  </table>
+
+  <!-- Main data table -->
+  <table>
+    <colgroup>
+      <col style="width:20%">
+      <col style="width:30%">
+      <col style="width:30%">
+      <col style="width:20%">
+    </colgroup>
+
+    <tr>
+      <td class="bold left">Caller Name</td>
+      <td class="center" dir="auto">{{ t.requester_name }}</td>
+      <td class="center" dir="rtl">{{ t.requester_name }}</td>
+      <td class="ar-label">اسم طالب الصيانة</td>
+    </tr>
+
+    <tr>
+      <td class="bold left">Caller Location</td>
+      <td class="center" dir="auto">{{ building.name }}</td>
+      <td class="center" dir="rtl">{{ to_ar(building.name) }}</td>
+      <td class="ar-label">موقع طالب الصيانة</td>
+    </tr>
+
+    <tr>
+      <td class="bold left">Section Name</td>
+      <td class="center" dir="auto">{{ section.name }}</td>
+      <td class="center" dir="rtl">{{ to_ar(section.name) }}</td>
+      <td class="ar-label">اسم القسم</td>
+    </tr>
+
+    <tr>
+      <td class="bold left">Floor Number</td>
+      <td class="center" dir="auto">{{ floor.name }}</td>
+      <td class="center" dir="rtl">{{ to_ar(floor.name) }}</td>
+      <td class="ar-label">رقم الطابق</td>
+    </tr>
+
+    <tr>
+      <td class="bold left">Office No / Name</td>
+      <td class="center" dir="auto">{{ room.name }}</td>
+      <td class="center" dir="rtl">{{ to_ar(room.name) }}</td>
+      <td class="ar-label">رقم / اسم المكتب</td>
+    </tr>
+
+    <tr>
+      <td class="bold left">Maintenance Type</td>
+      <td class="center" dir="auto">{{ t.maintenance_dept }}</td>
+      <td class="center" dir="rtl">{{ to_ar(t.maintenance_dept) }}</td>
+      <td class="ar-label">نوع الصيانة</td>
+    </tr>
+
+    <tr>
+      <td class="bold left">Error Name</td>
+      <td class="center" dir="auto">{{ t.error_name }}</td>
+      <td class="center" dir="rtl">{{ to_ar(t.error_name) }}</td>
+      <td class="ar-label">اسم العطل / المشكلة</td>
+    </tr>
+
+    <tr>
+      <td class="bold left">Job Priority</td>
+      <td class="center" dir="auto">{{ t.priority }}</td>
+      <td class="center" dir="rtl">{{ to_ar(t.priority) }}</td>
+      <td class="ar-label">درجة الأهمية</td>
+    </tr>
+
+    <tr>
+      <td class="bold left">Job Status</td>
+      <td class="center" dir="auto">{{ t.status }}</td>
+      <td class="center" dir="rtl">{{ to_ar(t.status) }}</td>
+      <td class="ar-label">حالة أمر العمل</td>
+    </tr>
+
+    <tr class="desc-row">
+      <td class="bold left">Error Desc</td>
+      <td class="center">
+        <div class="desc-wrap en">{{ t.description }}</div>
+      </td>
+      <td class="center">
+        <div class="desc-wrap ar">{{ to_ar(t.description) }}</div>
+      </td>
+      <td class="ar-label">وصف العطل</td>
+    </tr>
+  </table>
+
+  <!-- Spare parts -->
+  <table>
+    <tr>
+      <td colspan="4">
+        <div class="spares-wrap">
+          <div class="spares-title">
+            <div class="pair-label" style="font-weight:800;">
+              <span class="en">Spare Parts Required</span>
+              <span class="slash">/</span>
+              <span class="ar">قطع الغيار المطلوبة</span>
+            </div>
+          </div>
+
+          <div class="spare-row">
+            <div class="num-left">1 -</div>
+            <div class="num-center">2 -</div>
+          </div>
+
+          <div class="spare-row">
+            <div class="num-left">3 -</div>
+            <div class="num-center">4 -</div>
+          </div>
+
+          <div class="spare-row">
+            <div class="num-left">5 -</div>
+            <div class="num-center">6 -</div>
+          </div>
+
+        </div>
+      </td>
+    </tr>
+  </table>
+
+  <!-- Technician report -->
+  <table>
+    <tr>
+      <td colspan="4">
+        <div class="report-wrap">
+          <div class="report-title">
+            Technician Report / <span style="direction:rtl; display:inline-block;">التقرير الفني</span>
+          </div>
+          <div class="report-line"><div class="dotline"></div></div>
+          <div class="report-line"><div class="dotline"></div></div>
+          <div class="report-line"><div class="dotline"></div></div>
+        </div>
+      </td>
+    </tr>
+  </table>
+
+  <div class="fill-spacer"></div>
+
+  <!-- Signatures -->
+  <table>
+    <tr class="h-sign center">
+      <td>
+        <div class="sign-wrap">
+          <div class="sign-title">رئيس قسم الصيانة العامة</div>
+          <div class="sign-line"></div>
+        </div>
+      </td>
+
+      <td>
+        <div class="sign-wrap">
+          <div class="sign-title">مشرف قسم الصيانة العامة</div>
+          <div class="sign-line"></div>
+        </div>
+      </td>
+
+      <td>
+        <div class="sign-wrap">
+          <div class="sign-title">مسؤول القسم</div>
+          <div class="sign-line"></div>
+        </div>
+      </td>
+
+      <td>
+        <div class="sign-wrap">
+          <div class="sign-title">الفني المختص</div>
+          <div class="sign-line"></div>
+        </div>
+      </td>
+    </tr>
+  </table>
+
+  <div class="no-print">
+    <button onclick="window.print()">Print</button>
+  </div>
+
+</div>
+</body>
+</html>

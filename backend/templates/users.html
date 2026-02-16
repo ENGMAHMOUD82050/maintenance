@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+{% block title %}Users{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-3">
+  <div>
+    <h3 class="mb-0">Users Management</h3>
+    <div class="text-muted">Create, update, disable, reset password</div>
+  </div>
+</div>
+
+<!-- Filters -->
+<div class="card card-soft shadow-sm mb-3">
+  <div class="card-body">
+    <form method="get" class="row g-2 align-items-end">
+      <div class="col-12 col-md-4">
+        <label class="form-label">Search</label>
+        <input class="form-control" name="search" value="{{ search }}" placeholder="name / username">
+      </div>
+      <div class="col-6 col-md-3">
+        <label class="form-label">Role</label>
+        <select class="form-select" name="role">
+          <option value="">All</option>
+          {% for r in roles %}
+            <option value="{{ r }}" {% if role_filter==r %}selected{% endif %}>{{ r }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-6 col-md-3">
+        <label class="form-label">Dept</label>
+        <select class="form-select" name="dept">
+          <option value="">All</option>
+          {% for d in depts %}
+            <option value="{{ d }}" {% if dept_filter==d %}selected{% endif %}>{{ d.upper() }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-12 col-md-2 d-flex gap-2">
+        <button class="btn btn-primary w-100"><i class="bi bi-filter me-1"></i>Filter</button>
+        <a class="btn btn-outline-secondary w-100" href="/users">Reset</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Create -->
+<div class="card card-soft shadow-sm mb-3">
+  <div class="card-body">
+    <h5 class="mb-3"><i class="bi bi-person-plus me-1"></i>Add New User</h5>
+    <form method="post" class="row g-2 align-items-end">
+      <input type="hidden" name="action" value="create">
+
+      <div class="col-12 col-md-2">
+        <label class="form-label">Username</label>
+        <input class="form-control" name="username" required>
+      </div>
+      <div class="col-12 col-md-3">
+        <label class="form-label">Full Name</label>
+        <input class="form-control" name="full_name" required>
+      </div>
+      <div class="col-12 col-md-2">
+        <label class="form-label">Emp No</label>
+        <input class="form-control" name="emp_no">
+      </div>
+      <div class="col-6 col-md-2">
+        <label class="form-label">Role</label>
+        <select class="form-select" name="role" required>
+          {% for r in roles %}<option value="{{ r }}">{{ r }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="col-6 col-md-2">
+        <label class="form-label">Dept</label>
+        <select class="form-select" name="maintenance_dept">
+          <option value="">-</option>
+          {% for d in depts %}<option value="{{ d }}">{{ d.upper() }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="col-12 col-md-1">
+        <label class="form-label">PW</label>
+        <input class="form-control" name="password" type="password" required>
+      </div>
+
+      <div class="col-12 col-md-12">
+        <div class="text-muted small">
+          Dept is required for supervisor/technician.
+        </div>
+      </div>
+
+      <div class="col-12 col-md-2">
+        <button class="btn btn-primary w-100"><i class="bi bi-check-circle me-1"></i>Create</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Table -->
+<div class="card card-soft shadow-sm">
+  <div class="card-body">
+    <h5 class="mb-3"><i class="bi bi-people me-1"></i>Users List</h5>
+
+    <div class="table-responsive">
+      <table class="table align-middle">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Username</th>
+            <th>Full Name</th>
+            <th>Emp No</th>
+            <th>Role</th>
+            <th>Dept</th>
+            <th>Active</th>
+            <th style="width:340px;">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for u in users %}
+          <tr>
+            <td>{{ u.id }}</td>
+            <td class="fw-semibold">{{ u.username }}</td>
+
+            <td>
+              <form method="post" class="row g-2 align-items-end">
+                <input type="hidden" name="action" value="update">
+                <input type="hidden" name="user_id" value="{{ u.id }}">
+                <input class="form-control form-control-sm" name="full_name" value="{{ u.full_name }}">
+            </td>
+
+            <td>
+                <input class="form-control form-control-sm" name="emp_no" value="{{ u.emp_no or '' }}">
+            </td>
+
+            <td>
+                <select class="form-select form-select-sm" name="role">
+                  {% for r in roles %}
+                    <option value="{{ r }}" {% if u.role==r %}selected{% endif %}>{{ r }}</option>
+                  {% endfor %}
+                </select>
+            </td>
+
+            <td>
+                <select class="form-select form-select-sm" name="maintenance_dept">
+                  <option value="">-</option>
+                  {% for d in depts %}
+                    <option value="{{ d }}" {% if u.maintenance_dept==d %}selected{% endif %}>{{ d.upper() }}</option>
+                  {% endfor %}
+                </select>
+            </td>
+
+            <td>
+              {% if u.is_active %}
+                <span class="badge bg-success">Yes</span>
+              {% else %}
+                <span class="badge bg-secondary">No</span>
+              {% endif %}
+            </td>
+
+            <td>
+                <div class="d-flex flex-wrap gap-2">
+                  <button class="btn btn-sm btn-outline-primary" type="submit">
+                    <i class="bi bi-save"></i> Save
+                  </button>
+              </form>
+
+                  <form method="post" class="d-flex gap-1">
+                    <input type="hidden" name="action" value="reset_password">
+                    <input type="hidden" name="user_id" value="{{ u.id }}">
+                    <input class="form-control form-control-sm" name="new_password" type="password" placeholder="New PW" style="width:120px;">
+                    <button class="btn btn-sm btn-outline-secondary" type="submit">
+                      <i class="bi bi-key"></i>
+                    </button>
+                  </form>
+
+                  <form method="post">
+                    <input type="hidden" name="action" value="toggle">
+                    <input type="hidden" name="user_id" value="{{ u.id }}">
+                    <button class="btn btn-sm btn-outline-danger" type="submit"
+                            {% if u.username=='admin' %}disabled{% endif %}>
+                      <i class="bi bi-slash-circle"></i>
+                    </button>
+                  </form>
+                </div>
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="8" class="text-center text-muted py-4">No users</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>{% block title %}Maintenance System{% endblock %}</title>
+
+  <!-- Bootstrap 5 -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+
+  <!-- Bootstrap Icons -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+
+  <!-- Custom CSS -->
+  <link href="/static/styles.css" rel="stylesheet">
+
+  <style>
+    /* ===== Layout Control ===== */
+
+    /* Sidebar width = content width */
+    @media (min-width: 992px){
+      aside.sidebar-wrap{
+        width: 190px;
+        flex: 0 0 190px;
+      }
+
+      main.content-wrap{
+        flex: 1 1 auto;
+        width: calc(100% - 190px);
+      }
+    }
+
+    /* Sidebar styling */
+    .sidebar{
+      min-height: calc(100vh - 56px);
+    }
+
+    .side-link{
+      padding: .45rem .75rem;
+      font-size: .95rem;
+      white-space: nowrap;
+    }
+
+    /* Content full width */
+    .main-wrap-fluid{
+      width: 100%;
+      max-width: 100%;
+    }
+  </style>
+</head>
+
+<body class="bg-app">
+{% if current_user.is_authenticated %}
+<!-- Top Nav -->
+<nav class="navbar navbar-expand-lg navbar-dark bg-primary shadow-sm">
+  <div class="container-fluid">
+    <a class="navbar-brand fw-semibold" href="/dashboard">
+      <i class="bi bi-wrench-adjustable-circle me-2"></i>Maintenance System
+    </a>
+
+    <div class="d-flex align-items-center gap-3">
+      <div class="text-white small text-end">
+        <div class="fw-semibold">{{ current_user.full_name }}</div>
+        <div class="opacity-75">
+          {{ current_user.role }}{% if current_user.maintenance_dept %} • {{ current_user.maintenance_dept.upper() }}{% endif %}
+        </div>
+      </div>
+
+      <a class="btn btn-outline-light btn-sm" href="/logout">
+        <i class="bi bi-box-arrow-right me-1"></i>{{ tr("logout") }}
+      </a>
+    </div>
+  </div>
+</nav>
+
+<div class="container-fluid">
+  <div class="row g-0">
+    <!-- Sidebar -->
+    <aside class="sidebar-wrap p-0">
+      <div class="sidebar bg-white shadow-sm">
+        <div class="p-3 border-bottom">
+          <div class="small text-muted">Menu</div>
+        </div>
+
+        <div class="p-2">
+          <a class="nav-link side-link" href="/dashboard">
+            <i class="bi bi-speedometer2 me-2"></i>{{ tr("dashboard") }}
+          </a>
+
+          <a class="nav-link side-link" href="/tickets/create">
+            <i class="bi bi-plus-circle me-2"></i>{{ tr("create_ticket") }}
+          </a>
+
+          {% if current_user.role == 'supervisor' %}
+            <a class="nav-link side-link" href="/supervisor/inbox">
+              <i class="bi bi-inbox me-2"></i>Supervisor Inbox
+            </a>
+            <a class="nav-link side-link" href="/kpi">
+              <i class="bi bi-graph-up-arrow me-2"></i>{{ tr("kpi") }}
+            </a>
+          {% endif %}
+
+          {% if current_user.role == 'admin' %}
+            <div class="mt-2 px-3 small text-muted">Admin</div>
+            <a class="nav-link side-link" href="/locations">
+              <i class="bi bi-geo-alt me-2"></i>{{ tr("locations") }}
+            </a>
+            <a class="nav-link side-link" href="/users">
+              <i class="bi bi-people me-2"></i>{{ tr("users") }}
+            </a>
+            <a class="nav-link side-link" href="/kpi">
+              <i class="bi bi-graph-up-arrow me-2"></i>{{ tr("kpi") }}
+            </a>
+          {% endif %}
+        </div>
+      </div>
+    </aside>
+
+    <!-- Content -->
+    <main class="content-wrap py-3">
+      <div class="container-fluid main-wrap-fluid px-2">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            {% for category, msg in messages %}
+              <div class="alert alert-{{ 'danger' if category=='danger' else category }} alert-dismissible fade show">
+                {{ msg }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+              </div>
+            {% endfor %}
+          {% endif %}
+        {% endwith %}
+
+        {% block content %}{% endblock %}
+      </div>
+    </main>
+  </div>
+</div>
+
+{% else %}
+<div class="container py-5">
+  {% block content_auth %}{% endblock %}
+</div>
+{% endif %}
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

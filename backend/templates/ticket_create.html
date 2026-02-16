@@ -1,0 +1,253 @@
+{% extends "base.html" %}
+{% block title %}Create Ticket{% endblock %}
+{% block content %}
+
+<div class="card card-soft shadow-sm">
+  <div class="card-body">
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+      <h5 class="mb-0">Create Ticket</h5>
+      <a class="btn btn-sm btn-outline-secondary" href="/dashboard">Back</a>
+    </div>
+
+    <hr>
+
+    <form method="post" action="/tickets/create" autocomplete="off">
+      <div class="row g-3">
+
+        <!-- Requester -->
+        <div class="col-md-4">
+          <label class="form-label">Requester Name</label>
+          <input class="form-control" name="requester_name" required>
+        </div>
+
+        <div class="col-md-2">
+          <label class="form-label">Extension</label>
+          <input class="form-control" name="requester_extension" placeholder="Optional">
+        </div>
+
+        <!-- Dept / Priority -->
+        <div class="col-md-3">
+          <label class="form-label">Maintenance Department</label>
+          <select class="form-select" name="maintenance_dept" required>
+            <option value="" selected disabled>Select...</option>
+            {% for d in maint_depts %}
+              <option value="{{ d }}">{{ d.upper() }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="col-md-3">
+          <label class="form-label">Priority</label>
+          <select class="form-select" name="priority" required>
+            <option value="" selected disabled>Select...</option>
+            {% for p in priorities %}
+              <option value="{{ p }}">{{ p.upper() }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <!-- Location -->
+        <div class="col-12">
+          <div class="p-3 rounded-3 border bg-light">
+            <div class="fw-semibold mb-2">Location</div>
+
+            <div class="row g-3">
+              <div class="col-md-3">
+                <label class="form-label">Building</label>
+                <select class="form-select" id="building_id" name="building_id" required>
+                  <option value="" selected disabled>Loading...</option>
+                </select>
+              </div>
+
+              <div class="col-md-3">
+                <label class="form-label">Floor</label>
+                <select class="form-select" id="floor_id" name="floor_id" required disabled>
+                  <option value="" selected disabled>Select building first</option>
+                </select>
+              </div>
+
+              <div class="col-md-3">
+                <label class="form-label">Section</label>
+                <select class="form-select" id="section_id" name="section_id" required disabled>
+                  <option value="" selected disabled>Select floor first</option>
+                </select>
+              </div>
+
+              <div class="col-md-3">
+                <label class="form-label">Room</label>
+                <select class="form-select" id="room_id" name="room_id" required disabled>
+                  <option value="" selected disabled>Select section first</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="small text-muted mt-2">
+              If lists are empty: make sure Buildings/Floors/Sections/Rooms are created in Locations.
+            </div>
+          </div>
+        </div>
+
+        <!-- Ticket Info -->
+        <div class="col-md-4">
+          <label class="form-label">Error Name</label>
+          <input class="form-control" name="error_name" placeholder="Optional">
+        </div>
+
+        <div class="col-md-8">
+          <label class="form-label">Title</label>
+          <input class="form-control" name="title" required>
+        </div>
+
+        <div class="col-12">
+          <label class="form-label">Description</label>
+          <textarea class="form-control" name="description" rows="4" required></textarea>
+        </div>
+
+        <div class="col-12 d-flex gap-2 justify-content-end">
+          <button class="btn btn-primary" type="submit">
+            Create
+          </button>
+        </div>
+
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+(function(){
+  const bSel = document.getElementById("building_id");
+  const fSel = document.getElementById("floor_id");
+  const sSel = document.getElementById("section_id");
+  const rSel = document.getElementById("room_id");
+
+  function setOptions(sel, items, placeholder){
+    sel.innerHTML = "";
+    const opt0 = document.createElement("option");
+    opt0.value = "";
+    opt0.disabled = true;
+    opt0.selected = true;
+    opt0.textContent = placeholder || "Select...";
+    sel.appendChild(opt0);
+
+    for(const it of (items || [])){
+      const opt = document.createElement("option");
+      opt.value = it.id;
+      opt.textContent = it.name;
+      sel.appendChild(opt);
+    }
+  }
+
+  function setDisabled(sel, disabled, placeholder){
+    sel.disabled = !!disabled;
+    setOptions(sel, [], placeholder);
+  }
+
+  async function fetchJSON(url){
+    const res = await fetch(url, { headers: { "Accept": "application/json" }});
+    if(!res.ok) throw new Error("Request failed: " + url);
+    return await res.json();
+  }
+
+  async function loadBuildings(){
+    try{
+      const items = await fetchJSON("/api/locations/buildings");
+      if(!items.length){
+        setOptions(bSel, [], "No buildings (create in Locations)");
+        return;
+      }
+      setOptions(bSel, items, "Select building...");
+    }catch(e){
+      setOptions(bSel, [], "Error loading buildings");
+    }
+  }
+
+  async function onBuildingChange(){
+    const buildingId = bSel.value;
+    setDisabled(fSel, true, "Loading floors...");
+    setDisabled(sSel, true, "Select floor first");
+    setDisabled(rSel, true, "Select section first");
+
+    if(!buildingId) return;
+
+    try{
+      const items = await fetchJSON("/api/locations/floors?building_id=" + encodeURIComponent(buildingId));
+      fSel.disabled = false;
+      if(!items.length){
+        setOptions(fSel, [], "No floors (create in Locations)");
+        fSel.disabled = true;
+        return;
+      }
+      setOptions(fSel, items, "Select floor...");
+    }catch(e){
+      setOptions(fSel, [], "Error loading floors");
+      fSel.disabled = true;
+    }
+  }
+
+  async function onFloorChange(){
+    const buildingId = bSel.value;
+    const floorId = fSel.value;
+
+    setDisabled(sSel, true, "Loading sections...");
+    setDisabled(rSel, true, "Select section first");
+
+    if(!buildingId || !floorId) return;
+
+    try{
+      const url = "/api/locations/sections?building_id=" + encodeURIComponent(buildingId) +
+                  "&floor_id=" + encodeURIComponent(floorId);
+      const items = await fetchJSON(url);
+      sSel.disabled = false;
+      if(!items.length){
+        setOptions(sSel, [], "No sections (create in Locations)");
+        sSel.disabled = true;
+        return;
+      }
+      setOptions(sSel, items, "Select section...");
+    }catch(e){
+      setOptions(sSel, [], "Error loading sections");
+      sSel.disabled = true;
+    }
+  }
+
+  async function onSectionChange(){
+    const buildingId = bSel.value;
+    const floorId = fSel.value;
+    const sectionId = sSel.value;
+
+    setDisabled(rSel, true, "Loading rooms...");
+
+    if(!buildingId || !floorId || !sectionId) return;
+
+    try{
+      const url = "/api/locations/rooms?building_id=" + encodeURIComponent(buildingId) +
+                  "&floor_id=" + encodeURIComponent(floorId) +
+                  "&section_id=" + encodeURIComponent(sectionId);
+      const items = await fetchJSON(url);
+      rSel.disabled = false;
+      if(!items.length){
+        setOptions(rSel, [], "No rooms (create in Locations)");
+        rSel.disabled = true;
+        return;
+      }
+      setOptions(rSel, items, "Select room...");
+    }catch(e){
+      setOptions(rSel, [], "Error loading rooms");
+      rSel.disabled = true;
+    }
+  }
+
+  bSel.addEventListener("change", onBuildingChange);
+  fSel.addEventListener("change", onFloorChange);
+  sSel.addEventListener("change", onSectionChange);
+
+  // init
+  setDisabled(fSel, true, "Select building first");
+  setDisabled(sSel, true, "Select floor first");
+  setDisabled(rSel, true, "Select section first");
+  loadBuildings();
+})();
+</script>
+
+{% endblock %}

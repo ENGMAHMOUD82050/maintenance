@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>KPI Print</title>
+  <style>
+    @page { size: A4; margin: 12mm; }
+    body { font-family: Arial; color:#111; }
+    .no-print { margin-bottom:10px; }
+    .btn { padding:8px 10px; border:0; border-radius:6px; cursor:pointer; }
+    .btn-print { background:#0d6efd; color:#fff; }
+
+    .header { border-bottom:2px solid #111; padding-bottom:8px; margin-bottom:10px; }
+    .title { font-size:18px; font-weight:bold; }
+    .sub { font-size:12px; color:#333; }
+
+    .grid { display:grid; grid-template-columns: repeat(4, 1fr); gap:8px; margin-top:10px; }
+    .card { border:1px solid #111; border-radius:6px; padding:10px; }
+    .k { font-size:11px; color:#333; }
+    .v { font-size:20px; font-weight:bold; margin-top:6px; }
+
+    table { width:100%; border-collapse:collapse; margin-top:10px; }
+    th, td { border:1px solid #111; padding:7px; font-size:12px; }
+    th { background:#f2f2f2; }
+
+    @media print { .no-print { display:none; } }
+  </style>
+</head>
+<body>
+
+<div class="no-print">
+  <button class="btn btn-print" onclick="window.print()">Print</button>
+</div>
+
+<div class="header">
+  <div class="title">Maintenance KPI Report</div>
+  <div class="sub">Period: {{ from_date }} → {{ to_date }} | Dept: {{ 'ALL' if dept=='all' else dept.upper() }}</div>
+</div>
+
+<div class="grid">
+  <div class="card"><div class="k">Created (by Created Date)</div><div class="v">{{ data.created_total }}</div></div>
+  <div class="card"><div class="k">Closed (by Closed Date)</div><div class="v">{{ data.closed_total }}</div></div>
+  <div class="card"><div class="k">Closure Rate</div><div class="v">{{ "%.1f"|format(data.closure_rate) }}%</div></div>
+  <div class="card"><div class="k">Avg Closure Time</div><div class="v">{{ "%.1f"|format(data.avg_close_hours) }} hrs</div></div>
+</div>
+
+<table>
+  <thead><tr><th>Metric</th><th>Value</th></tr></thead>
+  <tbody>
+    <tr><td>Backlog End of Period (Created - Closed)</td><td><b>{{ data.backlog }}</b></td></tr>
+  </tbody>
+</table>
+
+<h3 style="margin-top:12px;">KPI by Maintenance Department</h3>
+<table>
+  <thead>
+    <tr>
+      <th>Dept</th><th>Created</th><th>Closed</th><th>Avg Closure (hrs)</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for r in data.rows %}
+    <tr>
+      <td>{{ r.dept }}</td>
+      <td>{{ r.created }}</td>
+      <td>{{ r.closed }}</td>
+      <td>{{ "%.1f"|format(r.avg_close_hours) }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<table style="margin-top:14px;">
+  <tr>
+    <th style="width:50%;">Prepared By</th>
+    <th>Approved By</th>
+  </tr>
+  <tr>
+    <td style="height:55px;"></td>
+    <td style="height:55px;"></td>
+  </tr>
+</table>
+
+</body>
+</html>

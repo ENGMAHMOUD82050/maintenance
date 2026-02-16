@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% block title %}Ticket #{{ t.ticket_no }}{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-start justify-content-between mb-3">
+  <div>
+    <h3 class="mb-0">Ticket #{{ t.ticket_no }}</h3>
+    <div class="text-muted small">
+      Created: {{ t.created_at.strftime("%Y-%m-%d %H:%M") }}
+      {% if t.closed_at %} • Closed: {{ t.closed_at.strftime("%Y-%m-%d %H:%M") }}{% endif %}
+    </div>
+  </div>
+
+  <div class="d-flex gap-2">
+    <a class="btn btn-outline-secondary" href="/dashboard">
+      <i class="bi bi-arrow-left me-1"></i>Back
+    </a>
+    <a class="btn btn-primary" href="/print/work-order/{{ t.id }}" target="_blank">
+      <i class="bi bi-printer me-1"></i>Print Work Order
+    </a>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-12 col-lg-8">
+    <div class="card card-soft shadow-sm">
+      <div class="card-body">
+        <div class="row g-3">
+          <div class="col-md-6">
+            <div class="text-muted small">Title</div>
+            <div class="fw-semibold">{{ t.title }}</div>
+          </div>
+          <div class="col-md-3">
+            <div class="text-muted small">Priority</div>
+            <span class="badge badge-status badge-pri-{{ t.priority }}">{{ t.priority }}</span>
+          </div>
+          <div class="col-md-3">
+            <div class="text-muted small">Status</div>
+            <span class="badge badge-status badge-{{ t.status }}">{{ t.status }}</span>
+          </div>
+
+          <div class="col-md-6">
+            <div class="text-muted small">Maintenance Dept</div>
+            <div class="fw-semibold">{{ (t.maintenance_dept or '').upper() }}</div>
+          </div>
+          <div class="col-md-6">
+            <div class="text-muted small">Error Name</div>
+            <div class="fw-semibold">{{ t.error_name or "-" }}</div>
+          </div>
+
+          <div class="col-12">
+            <div class="text-muted small">Description</div>
+            <div class="fw-semibold" style="white-space:pre-wrap;">{{ t.description }}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12 col-lg-4">
+    <div class="card card-soft shadow-sm mb-3">
+      <div class="card-body">
+        <h6 class="mb-3">Requester</h6>
+        <div class="mb-2">
+          <div class="text-muted small">Requester Name</div>
+          <div class="fw-semibold">{{ t.requester_name }}</div>
+        </div>
+        <div class="mb-0">
+          <div class="text-muted small">Requester Extension</div>
+          <div class="fw-semibold">{{ t.requester_extension if t.requester_extension else "-" }}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card card-soft shadow-sm">
+      <div class="card-body">
+        <h6 class="mb-3">Location</h6>
+        <div class="mb-2">
+          <div class="text-muted small">Building</div>
+          <div class="fw-semibold">{{ building.name if building else "-" }}</div>
+        </div>
+        <div class="mb-2">
+          <div class="text-muted small">Floor</div>
+          <div class="fw-semibold">{{ floor.name if floor else "-" }}</div>
+        </div>
+        <div class="mb-2">
+          <div class="text-muted small">Section</div>
+          <div class="fw-semibold">{{ section.name if section else "-" }}</div>
+        </div>
+        <div class="mb-0">
+          <div class="text-muted small">Room</div>
+          <div class="fw-semibold">{{ room.name if room else "-" }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

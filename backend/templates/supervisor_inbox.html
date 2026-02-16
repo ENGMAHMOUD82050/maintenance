@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+{% block title %}Supervisor Inbox{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-3">
+  <div>
+    <h3 class="mb-0">Supervisor Inbox</h3>
+    <div class="text-muted">Department: {{ current_user.maintenance_dept.upper() }}</div>
+  </div>
+</div>
+
+<form class="row g-2 align-items-end mb-3" method="get">
+  <div class="col-12 col-md-3">
+    <label class="form-label">Search</label>
+    <input class="form-control" name="q" placeholder="Ticket No / Title"
+           value="{{ request.args.get('q','') }}">
+  </div>
+  <div class="col-6 col-md-2">
+    <label class="form-label">Status</label>
+    <select class="form-select" name="status">
+      <option value="">All</option>
+      {% for s in statuses %}
+        <option value="{{ s }}" {% if request.args.get('status')==s %}selected{% endif %}>{{ s }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-6 col-md-2">
+    <label class="form-label">Priority</label>
+    <select class="form-select" name="priority">
+      <option value="">All</option>
+      {% for p in priorities %}
+        <option value="{{ p }}" {% if request.args.get('priority')==p %}selected{% endif %}>{{ p }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-12 col-md-3 d-flex gap-2">
+    <button class="btn btn-primary w-100"><i class="bi bi-search me-1"></i>Filter</button>
+    <a class="btn btn-outline-secondary w-100" href="/supervisor/inbox">Reset</a>
+  </div>
+</form>
+
+<div class="card card-soft shadow-sm">
+  <div class="table-responsive">
+    <table class="table align-middle mb-0">
+      <thead>
+        <tr>
+          <th>Job No</th>
+          <th>Title</th>
+          <th>Priority</th>
+          <th>Status</th>
+          <th>Assigned</th>
+          <th>SLA</th>
+          <th>Due</th>
+          <th>Created</th>
+          <th style="width:260px;">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in tickets %}
+          {% set sla = sla_map.get(t.id) %}
+          {% set overdue = sla.overdue if sla else false %}
+          <tr class="{% if overdue %}table-danger{% endif %}">
+            <td class="fw-semibold">#{{ t.ticket_no }}</td>
+            <td>{{ t.title }}</td>
+
+            <td><span class="badge badge-status badge-pri-{{ t.priority }}">{{ t.priority }}</span></td>
+            <td><span class="badge badge-status badge-{{ t.status }}">{{ t.status }}</span></td>
+
+            <td>
+              {% if t.assigned_technician_id %}
+                {{ tech_map.get(t.assigned_technician_id, '-') }}
+              {% else %}
+                <span class="text-muted">Not assigned</span>
+              {% endif %}
+            </td>
+
+            <td>
+              {% if sla %}
+                <span class="badge bg-secondary">{{ sla.hours }}h</span>
+                {% if overdue %}
+                  <span class="badge bg-danger ms-1">Overdue</span>
+                {% else %}
+                  <span class="badge bg-success ms-1">On time</span>
+                {% endif %}
+              {% else %}
+                -
+              {% endif %}
+            </td>
+
+            <td class="small">
+              {% if sla %}
+                {{ sla.due_at.strftime("%Y-%m-%d %H:%M") }}
+              {% else %}-{% endif %}
+            </td>
+
+            <td class="text-muted small">{{ t.created_at.strftime("%Y-%m-%d %H:%M") }}</td>
+
+            <td>
+              <div class="d-flex flex-wrap gap-2">
+
+                <form method="post" action="/supervisor/assign/{{ t.id }}" class="d-flex gap-1">
+                  <select class="form-select form-select-sm" name="technician_id" required>
+                    <option value="">Assign</option>
+                    {% for tech in technicians %}
+                      <option value="{{ tech.id }}">{{ tech.full_name }}</option>
+                    {% endfor %}
+                  </select>
+                  <button class="btn btn-sm btn-outline-primary"><i class="bi bi-person-check"></i></button>
+                </form>
+
+                <form method="post" action="/supervisor/status/{{ t.id }}" class="d-flex gap-1">
+                  <select class="form-select form-select-sm" name="status" required>
+                    {% for s in statuses %}
+                      <option value="{{ s }}">{{ s }}</option>
+                    {% endfor %}
+                  </select>
+                  <button class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-repeat"></i></button>
+                </form>
+
+                {% if t.status != 'closed' %}
+                <form method="post" action="/supervisor/close/{{ t.id }}">
+                  <button class="btn btn-sm btn-outline-danger" onclick="return confirm('Close ticket?')">
+                    <i class="bi bi-check-circle"></i>
+                  </button>
+                </form>
+                {% endif %}
+              </div>
+            </td>
+          </tr>
+        {% else %}
+          <tr><td colspan="9" class="text-center text-muted py-4">No tickets found</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
