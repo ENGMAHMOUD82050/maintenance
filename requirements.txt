@@ -1,0 +1,1 @@
+django>=3.2,<4.0\ndjangorestframework>=3.12,<4.0\ndjango-crispy-forms>=1.9,<2.0\ndjangorestframework-simplejwt>=4.0,<5.0\nalembic>=1.4,<2.0\n
